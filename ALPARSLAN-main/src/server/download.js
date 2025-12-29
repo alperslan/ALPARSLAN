@@ -30,8 +30,39 @@ export async function getFileSize(url, mode, quality = '1080p', playlistItems) {
         }
         ytdlpArgs.push('--skip-download');
         ytdlpArgs.push(url);
-        const command = `python -m yt_dlp ${ytdlpArgs.map(arg => `"${arg}"`).join(' ')}`;
-        const output = execSync(command, { encoding: 'utf-8', maxBuffer: 100 * 1024 * 1024 });
+        // Find a working yt-dlp invocation for execSync
+        let ytdlpExec = '';
+        let ytdlpExecPrefix = [];
+        const candidates = [
+            { cmd: 'python3', prefix: ['-m', 'yt_dlp'] },
+            { cmd: 'python', prefix: ['-m', 'yt_dlp'] },
+            { cmd: 'yt-dlp', prefix: [] },
+            { cmd: 'yt_dlp', prefix: [] },
+        ];
+        for (const c of candidates) {
+            try {
+                execSync(`${c.cmd} ${c.prefix.join(' ')} --version`, { encoding: 'utf-8' });
+                ytdlpExec = c.cmd;
+                ytdlpExecPrefix = c.prefix;
+                break;
+            }
+            catch (e) {
+                // try next
+            }
+        }
+        if (!ytdlpExec) {
+            console.error('yt-dlp (or Python with yt_dlp) is not installed. Please install Python and yt-dlp');
+            return 0;
+        }
+        // Build command
+        let execCommand = '';
+        if (ytdlpExec === 'yt-dlp' || ytdlpExec === 'yt_dlp') {
+            execCommand = `${ytdlpExec} ${ytdlpArgs.map(arg => `"${arg}"`).join(' ')}`;
+        }
+        else {
+            execCommand = `${ytdlpExec} ${ytdlpExecPrefix.join(' ')} ${ytdlpArgs.map(arg => `"${arg}"`).join(' ')}`;
+        }
+        const output = execSync(execCommand, { encoding: 'utf-8', maxBuffer: 100 * 1024 * 1024 });
         try {
             // Split by newline and parse each line (for playlists)
             const lines = output.trim().split('\n');
@@ -142,8 +173,36 @@ export async function downloadVideo(options) {
         ytdlpArgs.push(url);
         console.log(`Starting download (spawn): ${url}`);
         console.log(`Mode: ${mode}, Quality: ${quality}, Format: ${format}`);
+        // Choose a working yt-dlp invocation (python3/python/yt-dlp binary)
+        let ytdlpExec = '';
+        let ytdlpExecArgsPrefix = [];
+        const candidates = [
+            { cmd: 'python3', prefix: ['-m', 'yt_dlp'] },
+            { cmd: 'python', prefix: ['-m', 'yt_dlp'] },
+            { cmd: 'yt-dlp', prefix: [] },
+            { cmd: 'yt_dlp', prefix: [] },
+        ];
+        for (const c of candidates) {
+            try {
+                execSync(`${c.cmd} ${c.prefix.join(' ')} --version`, { encoding: 'utf-8' });
+                ytdlpExec = c.cmd;
+                ytdlpExecArgsPrefix = c.prefix;
+                break;
+            }
+            catch (e) {
+                // try next
+            }
+        }
+        if (!ytdlpExec) {
+            const msg = 'yt-dlp (or Python with yt_dlp) is not installed. Please install Python and yt-dlp (e.g., `pkg install python ffmpeg && pip install yt-dlp` in Termux).';
+            console.error(msg);
+            if (jobId)
+                failDownload(jobId, msg);
+            reject(new Error(msg));
+            return;
+        }
         // Spawn process
-        const pythonProcess = spawn('python', ['-m', 'yt_dlp', ...ytdlpArgs]);
+        const pythonProcess = spawn(ytdlpExec, [...ytdlpExecArgsPrefix, ...ytdlpArgs]);
         if (jobId) {
             // Store process reference
             setDownloadProcess(jobId, pythonProcess);

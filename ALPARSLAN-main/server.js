@@ -118,6 +118,55 @@ app.get('/api/download/progress/:jobId', (req, res) => {
     }
     res.json(progress);
 });
+
+// System info for debugging (helpful when running on Termux/Android)
+app.get('/api/sysinfo', (_req, res) => {
+    const info = {
+        node: process.version,
+        platform: process.platform,
+        arch: process.arch,
+    };
+    try {
+        const python = execSync('python3 --version', { encoding: 'utf-8' }).trim();
+        info.python = python;
+    }
+    catch {
+        try {
+            const python = execSync('python --version', { encoding: 'utf-8' }).trim();
+            info.python = python;
+        }
+        catch {
+            info.python = null;
+        }
+    }
+    try {
+        const ytdlp = execSync('yt-dlp --version', { encoding: 'utf-8' }).trim();
+        info.yt_dlp = ytdlp;
+    }
+    catch {
+        try {
+            const ytdlp = execSync('python3 -m yt_dlp --version', { encoding: 'utf-8' }).trim();
+            info.yt_dlp = ytdlp;
+        }
+        catch {
+            try {
+                const ytdlp = execSync('python -m yt_dlp --version', { encoding: 'utf-8' }).trim();
+                info.yt_dlp = ytdlp;
+            }
+            catch {
+                info.yt_dlp = null;
+            }
+        }
+    }
+    try {
+        const ffmpeg = execSync('ffmpeg -version', { encoding: 'utf-8' }).split('\n')[0];
+        info.ffmpeg = ffmpeg;
+    }
+    catch {
+        info.ffmpeg = null;
+    }
+    res.json(info);
+});
 // Pause download
 app.post('/api/download/pause/:jobId', (req, res) => {
     const { jobId } = req.params;

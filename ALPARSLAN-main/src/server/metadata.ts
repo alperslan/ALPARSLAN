@@ -16,21 +16,47 @@ export async function getVideoMetadata(url: string): Promise<VideoMetadata | nul
     // For playlists, use --flat-playlist to get cleaner output
     const isPlaylistUrl = url.includes('list=') || url.includes('playlist');
     const flatFlag = isPlaylistUrl ? '--flat-playlist' : '';
-    // Try to find python executable in common locations
-    let pythonCmd = 'python';
-    try {
-      // Try using the virtual environment python first
-      execSync('C:/Users/ariya/Downloads/ALPARSLAN/.venv/Scripts/python.exe -m yt_dlp --version', { encoding: 'utf-8' });
-      pythonCmd = 'C:/Users/ariya/Downloads/ALPARSLAN/.venv/Scripts/python.exe';
-    } catch {
-      // Fallback to system python
+    // Try to find a working python/yt-dlp executable (prefer python3 on Android/Termux)
+    let pythonCmd = '';
+    const candidates = ['python3', 'python', 'yt-dlp', 'yt_dlp'];
+    let found = false;
+    for (const cmd of candidates) {
       try {
-        execSync('python -m yt_dlp --version', { encoding: 'utf-8' });
+        execSync(`${cmd} -m yt_dlp --version`, { encoding: 'utf-8' });
+        pythonCmd = cmd;
+        found = true;
+        break;
       } catch {
-        throw new Error('yt-dlp is not installed. Please run: pip install yt-dlp');
+        // try next candidate
       }
     }
-    const command = `"${pythonCmd}" -m yt_dlp -j --no-warnings ${flatFlag} "${url.replace(/"/g, '\\"')}"`;
+
+    if (!found) {
+      // Try binary form (yt-dlp --version)
+      for (const bin of ['yt-dlp', 'yt_dlp']) {
+        try {
+          execSync(`${bin} --version`, { encoding: 'utf-8' });
+          pythonCmd = bin;
+          found = true;
+          break;
+        } catch {
+          // continue
+        }
+      }
+    }
+
+    if (!found) {
+      throw new Error('yt-dlp is not installed or Python is not available. Please install Python and run: pip install yt-dlp');
+    }
+
+    // If the chosen command is a binary (yt-dlp or yt_dlp), use it directly; otherwise use python -m yt_dlp
+    let command = '';
+    if (pythonCmd === 'yt-dlp' || pythonCmd === 'yt_dlp') {
+      command = `${pythonCmd} -j --no-warnings ${flatFlag} "${url.replace(/"/g, '\\"')}"`;
+    } else {
+      command = `${pythonCmd} -m yt_dlp -j --no-warnings ${flatFlag} "${url.replace(/"/g, '\\"')}"`;
+    }
+
     const output = execSync(command, { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 });
     
     // For playlists, yt-dlp outputs NDJSON (newline-delimited JSON)

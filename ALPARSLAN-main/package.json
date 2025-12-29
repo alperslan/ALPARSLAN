@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "server": "node serve.cjs",
-    "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
+    "server:full": "node server.js",
+    "dev:all": "concurrently \"npm run server:full\" \"npm run dev\"",
+    "dev:host": "vite --host",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
